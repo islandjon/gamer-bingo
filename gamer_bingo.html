@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <!-- Ensure proper scaling on mobile devices -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gamer Bingo</title>
+  <!-- 🎮 Set a game controller as the favicon -->
+  <link rel="icon" href="https://upload.wikimedia.org/wikipedia/commons/b/b6/Ps-controller-icon.svg">
+  <!-- Include canvas-confetti library for celebration effects -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+  <style>
+    /* Basic styling for the body */
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      background: #222;
+      color: white;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+    h1 { margin-bottom: 20px; }
+    
+    /* Container for the bingo board and controls */
+    .bingo-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    
+    /* Styling for the bingo board grid */
+    .bingo-board {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 5px;
+      width: auto;
+      margin: 0 auto;
+    }
+    
+    /* Styling for each bingo cell */
+    .bingo-cell {
+      position: relative;
+      width: 100px;
+      height: 100px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #333;
+      border: 2px solid white;
+      text-align: center;
+      font-size: 14px;
+      cursor: pointer;
+      user-select: none;
+    }
+    
+    /* Style for marked cells (using a pseudo-element) */
+    .marked::after {
+      content: '';
+      position: absolute;
+      width: 80%;
+      height: 80%;
+      background: rgba(255, 255, 255, 0.5);
+      border-radius: 50%;
+    }
+    
+    /* Special styling for the free center cell */
+    .free {
+      font-weight: bold;
+      background: #555;
+    }
+    
+    /* Styling for control buttons */
+    .buttons { margin-top: 20px; }
+    button {
+      padding: 10px 15px;
+      font-size: 16px;
+      cursor: pointer;
+      border: none;
+      background: #007BFF;
+      color: white;
+      border-radius: 5px;
+      margin: 5px;
+    }
+    button:hover { background: #0056b3; }
+    
+    /* Styling for the full-screen bingo message overlay */
+    .bingo-message {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.9);
+      color: #FFD700;
+      font-size: 80px;
+      font-weight: bold;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 2001;
+      text-shadow: 5px 5px 10px rgba(255, 215, 0, 0.7);
+    }
+    
+    /* Styling for the "Play Again" button in the overlay */
+    .play-again {
+      margin-top: 20px;
+      font-size: 20px;
+      padding: 15px 30px;
+      background: #28a745;
+      color: white;
+      border: none;
+      cursor: pointer;
+      border-radius: 10px;
+    }
+    .play-again:hover { background: #218838; }
+    
+    /* Canvas styling for confetti effects */
+    #confetti-canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 9999;
+    }
+    
+    /* Display for board ID (if needed) */
+    .id-display {
+      margin-top: 10px;
+      font-size: 14px;
+      color: #aaa;
+    }
+    
+    /* Mobile responsive adjustments */
+    @media (max-width: 600px) {
+      h1 { font-size: 24px; margin-bottom: 10px; }
+      .bingo-board {
+        width: 95%;
+        max-width: 500px;
+        gap: 3px;
+        grid-template-columns: repeat(5, 1fr);
+      }
+      .bingo-cell {
+        width: auto;
+        height: auto;
+        aspect-ratio: 1 / 1;
+        font-size: 10px;
+        border-width: 1px;
+      }
+      .bingo-message { font-size: 40px; }
+      .play-again { font-size: 16px; padding: 10px 20px; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Gamer Bingo by islandjon -->
+  <!-- Canvas for confetti effect -->
+  <canvas id="confetti-canvas"></canvas>
+  
+  <div class="bingo-container">
+    <h1>Gamer Bingo</h1>
+    <!-- Container for the bingo board cells -->
+    <div class="bingo-board" id="bingoBoard"></div>
+    <!-- Control buttons: New Card and Print -->
+    <div class="buttons">
+      <button onclick="generateNewBingoBoard()">New Card</button>
+      <button onclick="window.print()">Print</button>
+    </div>
+    <!-- Display for board ID and copy button -->
+    <div class="id-display">
+      <!-- Uncomment the line below to show the board ID on screen -->
+      <!-- Board ID: <span id="boardId">Generating...</span> -->
+      <button onclick="copyBoardId()">Copy ID</button>
+    </div>
+  </div>
+  
+  <!-- Overlay message that shows when Bingo is achieved -->
+  <div class="bingo-message" id="bingoMessage">
+    BINGO! 🎉
+    <button class="play-again" onclick="stopConfetti(); generateNewBingoBoard();">Play Again</button>
+  </div>
+
+  <script>
+    // List of phrases to populate the bingo board
+    const phrases = [
+      "He's hacking!", "Acting cocky", "Side eye", "Bro!", "Super focused",
+      "Yelling at the game", "Throws controller", "Goofy laugh", "We suck", "Come revive me!",
+      "C'mon!", "Babe did you see that?", "X Gesture IRL", "Eats snack", "Blames lag",
+      "Trash talks opponent", "Celebrates prematurely", "Complains about campers", "Mentions a glitch", "Quotes a meme",
+      "Sings along with game music", "Adjusts headset", "Checks phone mid-game", "Mentions previous game", "Laughs at own mistake",
+      "Mocks NPC", "Talks strategy aloud", "Mentions favorite streamer", "Complains about controls", "Gets distracted by surroundings",
+      "Pauses game unexpectedly", "Mentions game update", "Shares gaming anecdote", "Expresses disbelief at loss"
+    ];
+
+    let confettiInterval; // Global interval for confetti bursts
+
+    /**
+     * Shuffle the array in-place using sort with a random comparator.
+     * Note: This is not the most robust method for shuffling.
+     */
+    function shuffleArray(array) {
+      return array.sort(() => Math.random() - 0.5);
+    }
+
+    /**
+     * Encode the board array as a base64 string.
+     * This is used to store/share the board state.
+     */
+    function encodeBoard(board) {
+      return btoa(JSON.stringify(board));
+    }
+
+    /**
+     * Decode the base64 string back to a board array.
+     * Returns null if decoding fails.
+     */
+    function decodeBoard(encoded) {
+      try {
+        return JSON.parse(atob(encoded));
+      } catch {
+        return null;
+      }
+    }
+
+    /**
+     * Generate a new bingo board:
+     * - Shuffle the phrases.
+     * - Take the first 24 phrases.
+     * - Insert the "FREE" center cell.
+     * - Update the board display.
+     */
+    function generateNewBingoBoard() {
+      const board = shuffleArray([...phrases]).slice(0, 24);
+      board.splice(12, 0, "FREE");
+      updateBoard(board);
+    }
+
+    /**
+     * Update the DOM to display the new board:
+     * - Clear previous cells.
+     * - Hide any active bingo message.
+     * - Create new cell elements with appropriate classes and event handlers.
+     * - Update the URL with the encoded board state.
+     */
+    function updateBoard(board) {
+      const boardElement = document.getElementById("bingoBoard");
+      boardElement.innerHTML = "";
+      document.getElementById("bingoMessage").style.display = "none";
+
+      board.forEach((phrase, index) => {
+        const cell = document.createElement("div");
+        cell.classList.add("bingo-cell");
+        // If the cell is the FREE cell, pre-mark it and apply special styling
+        if (phrase === "FREE") {
+          cell.classList.add("free", "marked");
+        } else {
+          // Toggle marked state on click and check for bingo
+          cell.onclick = () => {
+            cell.classList.toggle("marked");
+            checkForBingo();
+          };
+        }
+        cell.innerText = phrase;
+        boardElement.appendChild(cell);
+      });
+
+      // Encode the current board state and update the URL without reloading
+      const boardId = encodeBoard(board);
+      // Optionally display the board ID:
+      // document.getElementById("boardId").innerText = boardId;
+      history.replaceState(null, "", `?id=${boardId}`);
+    }
+
+    /**
+     * Check the current board for any complete row, column, or diagonal.
+     * If a bingo is found, trigger the celebration.
+     */
+    function checkForBingo() {
+      const cells = document.querySelectorAll(".bingo-cell");
+      // Create a binary grid: 1 for marked, 0 for unmarked
+      let grid = Array.from(cells).map(cell => cell.classList.contains("marked") ? 1 : 0);
+      let board = [];
+      for (let i = 0; i < 5; i++) {
+        board.push(grid.slice(i * 5, i * 5 + 5));
+      }
+
+      // Check rows and columns for bingo
+      for (let i = 0; i < 5; i++) {
+        if (board[i].every(cell => cell === 1) ||
+            board.map(row => row[i]).every(cell => cell === 1)) {
+          showBingo();
+          return;
+        }
+      }
+      // Check diagonals for bingo
+      if ([0, 1, 2, 3, 4].map(i => board[i][i]).every(cell => cell === 1) ||
+          [0, 1, 2, 3, 4].map(i => board[i][4 - i]).every(cell => cell === 1)) {
+        showBingo();
+      }
+    }
+
+    /**
+     * Display the bingo overlay message and start the confetti effect.
+     */
+    function showBingo() {
+      document.getElementById("bingoMessage").style.display = "flex";
+
+      let confettiCanvas = document.getElementById("confetti-canvas");
+      let confettiInstance = confetti.create(confettiCanvas, { resize: true });
+
+      // Start repeating confetti bursts every 250ms
+      confettiInterval = setInterval(() => {
+        confettiInstance({
+          particleCount: 100,
+          startVelocity: 30,
+          spread: 360,
+          origin: {
+            x: Math.random(),
+            // Slightly adjust y-origin for a better visual effect
+            y: Math.random() - 0.2
+          }
+        });
+      }, 250);
+    }
+
+    /**
+     * Stop the confetti effect by clearing the interval.
+     */
+    function stopConfetti() {
+      clearInterval(confettiInterval);
+    }
+
+    /**
+     * Copy the current page URL (which includes the board ID) to the clipboard.
+     */
+    function copyBoardId() {
+      navigator.clipboard.writeText(window.location.href)
+        .then(() => alert("Board ID copied!"));
+    }
+
+    /**
+     * On page load:
+     * - Check if a board ID is present in the URL.
+     * - If present, decode and display that board.
+     * - Otherwise, generate a new board.
+     */
+    window.onload = () => {
+      const id = new URLSearchParams(window.location.search).get("id");
+      id ? updateBoard(decodeBoard(id)) : generateNewBingoBoard();
+    };
+  </script>
+</body>
+</html>
